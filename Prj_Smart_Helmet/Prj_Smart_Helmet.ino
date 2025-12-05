@@ -97,6 +97,7 @@ bool lock_key = false;  //Biến lock phím
 bool tt_doi = false;
 // Biến được chia sẻ giữa Task (Lõi 0) và Loop (Lõi 1)
 volatile float absoluteRoll = 0.0;
+volatile float pitch = 0.0;
 volatile unsigned long tiltStartTime = 0;  //Biến lưu trữ thời gian bắt đầu khi xe nghiêng quá mức
 volatile bool accidentDetected = false;    //Biến phát hiện tai nạn
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
@@ -208,8 +209,9 @@ void TaskDetectAccident(void* parameter) {
       az_g = az / ACCEL_SENSITIVITY;
       totalG = sqrt(ax_g * ax_g + ay_g * ay_g + az_g * az_g);
       totalm2s = totalG * G_ACCEL;
-      roll = atan2(ay_g, az_g) * 180.0 / M_PI;
+      roll = atan2(ay_g, az_g) * 180.0 / M_PI;  // Góc nghiêng trái phải 
       absoluteRoll = abs(roll);
+      pitch = atan2(-ax_g,az_g)* 180.0 / M_PI;  // Góc nghiêng trước sau
       // Ghi dữ liệu hoặc trigger
       if (isRecording) {
         recordEvent(totalm2s);
@@ -333,7 +335,7 @@ void updateVelocity() {
 // hàm con đọc data mpu và phát hiện tai nạn khi nón bị đổ
 void DetectAccident_1() {
   // ==== PHÁT HIỆN TAI NẠN ====
-  if (absoluteRoll >= TILT_ANGLE_THRESHOLD_DEG) {
+  if (absoluteRoll >= TILT_ANGLE_THRESHOLD_DEG|| pitch >= 70 || pitch <= -55) {
     if (tiltStartTime == 0) {
       tiltStartTime = millis();
       Serial.print("-> Cảnh báo nghiêng: ");
@@ -409,7 +411,7 @@ void streamCallback(StreamData data) {
 
   if (path == "/phonenum") {
     fb_phone_new = data.stringData();
-    if (fb_phone_new != fb_phone_old) { // So sánh SDT nếu giá trị khác sẽ cập nhật
+    if (fb_phone_new != fb_phone_old) {  // So sánh SDT nếu giá trị khác sẽ cập nhật
       fb_phone_old = fb_phone_new;
       if (xSemaphoreTake(i2cMutex, portMAX_DELAY) == pdTRUE) {
         display.clearDisplay();
@@ -420,7 +422,7 @@ void streamCallback(StreamData data) {
         xSemaphoreGive(i2cMutex);
       }
       phoneNumber = fb_phone_new;
-      luuGiaTriVaoFlash(phoneNumber); // lưu số điện thoại vào bộ nhớ flash
+      luuGiaTriVaoFlash(phoneNumber);  // lưu số điện thoại vào bộ nhớ flash
     }
   }
 
@@ -482,7 +484,7 @@ void sendfb_GPS() {
 // hàm con gửi tin nhắn sms
 void sendSMS(String number) {
   String message = "So dien thoai vua nhap: " + number;
-  sim.println("AT");  // Đánh thức sim khi ngủ sâu 
+  sim.println("AT");  // Đánh thức sim khi ngủ sâu
   delay(100);
   Serial.println("Dang gui SMS...");
   sim.println("AT+CMGS=\"" + number + "\"");
@@ -515,9 +517,9 @@ void nhantinnhan() {
 }
 
 void call_sos(String cmd) {
-  sim.println("AT");  // Đánh thức sim khi ngủ sâu     
+  sim.println("AT");  // Đánh thức sim khi ngủ sâu
   delay(100);
-  sim.println("AT");  // Gửi lại lần nữa cho chắc 
+  sim.println("AT");  // Gửi lại lần nữa cho chắc
   sim.println(cmd);
   Serial.println(">> " + cmd);
   if (sim.available()) Serial.write(sim.read());
@@ -525,7 +527,7 @@ void call_sos(String cmd) {
 }
 
 void sendSMS_GPS(String phone, String msg) {
-  sim.println("AT");    // Kích hoạt sim
+  sim.println("AT");  // Kích hoạt sim
   delay(100);
   sim.println("AT+CMGF=1");
   delay(500);
@@ -996,4 +998,3 @@ void docNongDoCon() {
     }
   }
 }
-
